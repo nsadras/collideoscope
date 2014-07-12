@@ -4,9 +4,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 
 import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
@@ -15,42 +18,53 @@ import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
-import org.opencv.android.CameraBridgeViewBase;
-import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.objdetect.CascadeClassifier;
 
 import android.app.Activity;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.os.Bundle;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
+import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.WindowManager;
 
-public class FdActivity extends Activity implements CvCameraViewListener2 {
+public class FdActivity extends Activity implements SensorEventListener, CvCameraViewListener2 {
 
     private static final String    TAG                 = "OCVSample::Activity";
     private static final Scalar    FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
-    public static final int        JAVA_DETECTOR       = 0;
-    public static final int        NATIVE_DETECTOR     = 1;
+    public static final int        	JAVA_DETECTOR       = 0;
+    public static final int        	NATIVE_DETECTOR     = 1;
 
-    private MenuItem               mItemFace50;
-    private MenuItem               mItemFace40;
-    private MenuItem               mItemFace30;
-    private MenuItem               mItemFace20;
-    private MenuItem               mItemType;
+    private MenuItem               	mItemFace50;
+    private MenuItem               	mItemFace40;
+    private MenuItem               	mItemFace30;
+    private MenuItem               	mItemFace20;
+    private MenuItem               	mItemType;
 
-    private Mat                    mRgba;
-    private Mat                    mGray;
-    private File                   mCascadeFile;
-    private CascadeClassifier      mJavaDetector;
-    private DetectionBasedTracker  mNativeDetector;
+    private Mat                    	mRgba;
+    private Mat                    	mGray;
+    private File                   	mCascadeFile;
+    private CascadeClassifier      	mJavaDetector;
+    private DetectionBasedTracker  	mNativeDetector;
 
-    private int                    mDetectorType       = JAVA_DETECTOR;
-    private String[]               mDetectorName;
+    private int                    	mDetectorType       = JAVA_DETECTOR;
+    private String[]               	mDetectorName;
 
-    private float                  mRelativeFaceSize   = 0.2f;
-    private int                    mAbsoluteFaceSize   = 0;
+    private float                  	mRelativeFaceSize   = 0.2f;
+    private int                    	mAbsoluteFaceSize   = 0;
+    
+    private boolean 			   	wtf = true;
+    private int 					xMax;
 
     private CameraBridgeViewBase   mOpenCvCameraView;
 
@@ -64,6 +78,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
 
                     // Load native library after(!) OpenCV initialization
                     System.loadLibrary("detection_based_tracker");
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
 
                     try {
                         // load cascade file from application resources
@@ -72,7 +87,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                         mCascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
                         FileOutputStream os = new FileOutputStream(mCascadeFile);
 
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[8192];
                         int bytesRead;
                         while ((bytesRead = is.read(buffer)) != -1) {
                             os.write(buffer, 0, bytesRead);
@@ -156,7 +171,92 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         mGray.release();
         mRgba.release();
     }
+    
+    
+public void onSensorChanged(SensorEvent event){
+		
+//		// check sensor type
+		if(event.sensor.getType()==Sensor.TYPE_ACCELEROMETER){
+			
+			Log.d("accel", "switch?");
 
+			if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT && wtf)
+			{  
+			 wtf = false;
+			 xMax=1;
+			 Log.d("accel", "switch?");
+			 long[] vibratePattern = {25, 10000};
+		        Intent yesReceive = new Intent();
+		        yesReceive.setAction("Collision!!");
+		        PendingIntent pendingIntentYes = PendingIntent.getBroadcast(this, 12345, yesReceive, PendingIntent.FLAG_UPDATE_CURRENT);
+		        NotificationCompat.Builder notificationBuilder =
+		                new NotificationCompat.Builder(this)
+		                        .addAction(R.drawable.icon, "Cancel Alert?", pendingIntentYes)
+		                        .setSmallIcon(R.drawable.icon)
+		                        .setContentTitle("Crash Detected!")
+		                        .setContentText("swipe to right cancel...")
+		                        .setLights(100, 100, 30)
+		                        .setPriority(1)
+		                      //.setFullScreenIntent(new PendingIntent(), true)
+		                        .setVibrate(vibratePattern);
+		        NotificationManagerCompat notificationManager =
+		                NotificationManagerCompat.from(this);
+
+		        // Build the notification and issues it with notification manager.
+		        
+		        notificationManager.notify(001, notificationBuilder.build());
+		        sendSms("4012567860", "Bro down!!", false);
+			}
+			if (getResources().getConfiguration().orientation ==Configuration.ORIENTATION_LANDSCAPE)
+			{  	
+			 xMax=0;
+			 wtf = true;
+		
+			}
+			
+		
+			float x=event.values[0];
+			float y=event.values[1];
+			float z=event.values[2];
+			
+			
+		}
+	}
+
+	private void sendSms(String phonenumber,String message, boolean isBinary)
+	{
+	    SmsManager manager = SmsManager.getDefault();
+
+	    PendingIntent piSend = PendingIntent.getBroadcast(this, 0, new Intent(), 0);
+	    PendingIntent piDelivered = PendingIntent.getBroadcast(this, 0, new Intent(), 0);
+
+	    if(isBinary)
+	    {
+	            byte[] data = new byte[message.length()];
+
+	            for(int index=0; index<message.length() && index < 160; ++index)
+	            {
+	                    data[index] = (byte)message.charAt(index);
+	            }
+
+	            manager.sendDataMessage(phonenumber, null, (short) 2, data,piSend, piDelivered);
+	    }
+	    else
+	    {
+	            int length = message.length();
+
+	            if(length > 160)
+	            {
+	                    ArrayList<String> messagelist = manager.divideMessage(message);
+
+	                    manager.sendMultipartTextMessage(phonenumber, null, messagelist, null, null);
+	            }
+	            else
+	            {
+	                    manager.sendTextMessage(phonenumber, null, message, piSend, piDelivered);
+	            }
+	    }
+	}
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
 
         mRgba = inputFrame.rgba();
@@ -184,10 +284,55 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         else {
             Log.e(TAG, "Detection method is not selected!");
         }
-
+        Log.d("header", "this is a header");
         Rect[] facesArray = faces.toArray();
-        for (int i = 0; i < facesArray.length; i++)
+        for (int i = 0; i < facesArray.length; i++){
             Core.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+        	double width = Math.abs(facesArray[i].br().x - facesArray[i].tl().x);
+        	double height = Math.abs(facesArray[i].br().y - facesArray[i].tl().y);
+        	double area = width*height;
+        	Log.d("header", "this is a header");
+        	Log.d("area", Double.toString(area));
+        	
+        	double approaching_threshold = 40000;
+        	double imminent_threshold = 100000;
+        	
+        	if (area > approaching_threshold){
+        		long[] pattern = {25, 1000};
+        		Intent viewIntent = new Intent();
+        		viewIntent.putExtra("Distance", true);
+        		PendingIntent viewPendingIntent =
+        		        PendingIntent.getActivity(this, 0, viewIntent, 0);
+        		String title; 
+        		String text;
+        	
+        		
+        		if (area > imminent_threshold){
+        			title = "COLLISION IMMINENT";
+        			text = "may got have mercy on your soul";
+        		} else {
+        			title = "vehicle approaching";
+        			text = "Swipe right";
+        		}
+        		
+
+        		NotificationCompat.Builder notificationBuilder =
+        		        new NotificationCompat.Builder(this)
+        		        .setSmallIcon(R.drawable.icon)
+        		        .setContentTitle(title)
+        		        .setContentText(text)
+        		        .setVibrate(pattern);
+        		    
+
+        		// Get an instance of the NotificationManager service
+        		NotificationManagerCompat notificationManager =
+        		        NotificationManagerCompat.from(this);
+
+        		// Build the notification and issues it with notification manager.
+        		notificationManager.notify(1, notificationBuilder.build());
+        	}
+        }
+        	
 
         return mRgba;
     }
@@ -240,4 +385,10 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
             }
         }
     }
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// TODO Auto-generated method stub
+		
+	}
 }
